@@ -1,0 +1,13 @@
+node_modules/
+# Your keys: never in git (only the template .env.example)
+.env
+.env.*
+!.env.example
+# Browser automation (screenshots and page dumps can contain your data)
+.playwright-mcp/
+npm-install.log
+*.log
+*.err
+
+.DS_Store
+tmp/

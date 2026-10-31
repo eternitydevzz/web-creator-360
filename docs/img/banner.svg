@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" role="img" aria-label="Web Creator 360: negocio nuevo, web con Claude, email con Instantly, llamada">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F0C29"/>
+      <stop offset=".55" stop-color="#1E1B4B"/>
+      <stop offset="1" stop-color="#312E81"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".82" cy=".1" r=".6">
+      <stop offset="0" stop-color="#818CF8" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#818CF8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#C7D2FE"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#FFFFFF" stroke-opacity=".05"/>
+    </pattern>
+  </defs>
+  <rect width="1280" height="420" rx="28" fill="url(#bg)"/>
+  <rect width="1280" height="420" rx="28" fill="url(#grid)"/>
+  <rect width="1280" height="420" rx="28" fill="url(#glow)"/>
+
+  <g font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif">
+    <text x="72" y="92" fill="#A5B4FC" font-size="18" font-weight="700" letter-spacing="4">CÓDIGO MAESTRIA</text>
+    <text x="70" y="172" fill="url(#title)" font-size="76" font-weight="800" letter-spacing="-1.5">Web Creator 360</text>
+    <text x="72" y="222" fill="#E0E7FF" font-size="26" font-weight="400">Encuentra negocios recién creados, hazles su web con IA</text>
+    <text x="72" y="258" fill="#E0E7FF" font-size="26" font-weight="400">y que te pidan la llamada. Todo en piloto automático.</text>
+
+    <!-- flujo -->
+    <g font-size="17" font-weight="700">
+      <rect x="72" y="312" width="196" height="54" rx="27" fill="#FFFFFF" fill-opacity=".1" stroke="#A5B4FC" stroke-opacity=".5"/>
+      <circle cx="102" cy="339" r="13" fill="#38BDF8"/><text x="96" y="345" fill="#0F172A" font-size="15">1</text>
+      <text x="124" y="345" fill="#FFFFFF">LLC nueva</text>
+
+      <path d="M276 339h30" stroke="#A5B4FC" stroke-width="2.5" stroke-dasharray="4 5"/><path d="M306 333l9 6-9 6z" fill="#A5B4FC"/>
+
+      <rect x="324" y="312" width="226" height="54" rx="27" fill="#FFFFFF" fill-opacity=".1" stroke="#A5B4FC" stroke-opacity=".5"/>
+      <circle cx="354" cy="339" r="13" fill="#F59E0B"/><text x="348" y="345" fill="#0F172A" font-size="15">2</text>
+      <text x="376" y="345" fill="#FFFFFF">Claude hace su web</text>
+
+      <path d="M558 339h30" stroke="#A5B4FC" stroke-width="2.5" stroke-dasharray="4 5"/><path d="M588 333l9 6-9 6z" fill="#A5B4FC"/>
+
+      <rect x="606" y="312" width="236" height="54" rx="27" fill="#FFFFFF" fill-opacity=".1" stroke="#A5B4FC" stroke-opacity=".5"/>
+      <circle cx="636" cy="339" r="13" fill="#A78BFA"/><text x="630" y="345" fill="#0F172A" font-size="15">3</text>
+      <text x="658" y="345" fill="#FFFFFF">Instantly le escribe</text>
+
+      <path d="M850 339h30" stroke="#A5B4FC" stroke-width="2.5" stroke-dasharray="4 5"/><path d="M880 333l9 6-9 6z" fill="#A5B4FC"/>
+
+      <rect x="898" y="312" width="300" height="54" rx="27" fill="#34D399"/>
+      <circle cx="928" cy="339" r="13" fill="#064E3B"/><text x="922" y="345" fill="#FFFFFF" font-size="15">4</text>
+      <text x="950" y="345" fill="#064E3B">Te pide la llamada</text>
+    </g>
+  </g>
+</svg>

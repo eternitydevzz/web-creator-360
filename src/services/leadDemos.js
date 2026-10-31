@@ -1,0 +1,213 @@
+// The demo website of a new-business lead, made BEFORE the lead goes to Instantly (the email links to it as {{web}}):
+//   template engine (Claude Sonnet 5.5 writes the texts) → demo bar + visit beacon → Vercel → saved on the lead
+// A lead is claimed first (demo_status 'generating'), so the autopilot and the dashboard never make the same demo twice.
+import slugify from 'slugify';
+import { buildSite, chooseTemplate, brandName } from '../sitegen/index.js';
+import { deployToVercel, deleteVercelProject, projectNameOf } from './vercel.js';
+import { esc } from '../lib/pages.js';
+import { selectAll } from '../lib/selectAll.js';
+import { isEnglishSource } from './audience.js';
+
+const TABLE = 'new_business_leads';
+
+// "Sol Tax" + token → "sol-tax-k3x9" (Vercel project names: lowercase letters, digits and dashes, ≤ 52 characters)
+export function demoSlug(lead) {
+  const base = slugify(brandName(lead.name).brand, { lower: true, strict: true }).slice(0, 40).replace(/-+$/, '') || 'web';
+  const tag = String(lead.link_token || lead.id || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4) || 'demo';
+  return `${base}-${tag}`;
+}
+
+// What turns a site into the lead's demo: not indexed, a small bar that says it's a sample made for them (with the way to
+// ask for it), and a beacon that tells the campaign server the owner opened it (→ "engaged").
+export function decorateDemo(html, { brand, requestUrl, beaconUrl, lang = 'es' }) {
+  const en = lang === 'en';
+  const bar = `
+<!-- demo: barra de muestra + aviso de visita (lo añade Web Creator 360 a cada demo) -->
+<style>
+.wc-demo{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483000;display:flex;align-items:center;gap:14px;max-width:calc(100vw - 24px);padding:10px 10px 10px 18px;border-radius:999px;background:rgba(17,17,17,.92);color:#fff;font:500 14px/1.3 system-ui,-apple-system,"Segoe UI",sans-serif;box-shadow:0 12px 32px -12px rgba(0,0,0,.55)}
+.wc-demo span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wc-demo a{flex:none;padding:9px 16px;border-radius:999px;background:#fff;color:#111;font-weight:700;text-decoration:none}
+.wc-demo button{flex:none;width:30px;height:30px;border:0;border-radius:50%;background:transparent;color:#fff;font-size:18px;line-height:1;cursor:pointer}
+.wc-demo a:focus-visible,.wc-demo button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+@media (max-width:760px){.wc-demo{bottom:88px;width:calc(100vw - 24px);border-radius:18px;font-size:12.5px;gap:8px;padding-left:14px}.wc-demo span{white-space:normal;line-height:1.35}}
+</style>
+<div class="wc-demo" role="complementary" aria-label="${en ? 'Sample website' : 'Web de muestra'}">
+  <span>${en ? `Sample website for ${esc(brand)} · photos and details are examples` : `Web de muestra para ${esc(brand)} · fotos y datos de ejemplo`}</span>
+  <a href="${esc(requestUrl)}">${en ? 'I want it' : 'La quiero'}</a>
+  <button type="button" aria-label="${en ? 'Close' : 'Cerrar'}" onclick="this.parentNode.remove()">×</button>
+</div>
+<script>
+setTimeout(function(){try{var u=${JSON.stringify(beaconUrl)};if(navigator.sendBeacon)navigator.sendBeacon(u);else fetch(u,{method:'POST',mode:'no-cors',keepalive:true});}catch(e){}},1500);
+</script>
+`;
+  return html
+    .replace(/<head([^>]*)>/i, (m) => `${m}\n<meta name="robots" content="noindex, nofollow">`)
+    .replace(/<\/body>(?![\s\S]*<\/body>)/i, `${bar}</body>`);
+}
+
+// The facts the engine gets from a lead. LLC leads have no phone (the registry doesn't give one, so the template's sample stays);
+// Google Maps leads bring the business's real phone, state and category.
+export const leadBusiness = (lead) => ({
+  name: lead.name, city: lead.city, state: lead.state || 'CT', email: lead.email, sector: lead.sector,
+  naics_code: lead.naics_code, activity: lead.category || lead.naics_code || null, registered_at: lead.registered_at,
+  ...(lead.business_phone ? { phone: lead.business_phone } : {}),
+  ...(isEnglishSource(lead.source) ? { audience: 'en' } : {}),     // the owner is not assumed to be Latino
+});
+
+// A demo stuck in 'generating' this long means the process died half-way; a failed one waits this long before its one retry
+export const STUCK_AFTER_MS = 20 * 60_000;
+export const RETRY_AFTER_MS = 60 * 60_000;
+// Marks (in demo_error) a demo that already had its automatic retry: it is not retried by itself again. A failure after Claude
+// was paid (cut answer, bad JSON, sample text left) would otherwise be paid again every hour. You can still remake it by hand.
+export const RETRY_MARK = '[reintento]';
+
+// Makes, publishes and saves the demo of one lead → { ok, url?, template?, usage?, error?, skipped? }
+//   publicUrl: the campaign server (the demo links back to it) · force: remake a demo that is ready or failed (by hand)
+//   retry: this is the one automatic retry of a failed or stuck demo (see generateDemos) · build / deploy: replaceable in tests
+export async function createLeadDemo({ db, ownerId, lead, publicUrl, force = false, retry = false, build = buildSite, deploy = deployToVercel, now = () => new Date() }) {
+  // Claim: only the call that flips demo_status gets to make it
+  const from = lead.demo_status ?? null;
+  const stuck = from === 'generating' && Date.parse(lead.updated_at || 0) < now().getTime() - STUCK_AFTER_MS;
+  if (from === 'generating' && !stuck) return { ok: false, skipped: true, error: 'ya se está creando' };
+  const retrying = retry && (from === 'failed' || stuck);
+  if (!force && !stuck && !retrying && from !== null) return { ok: false, skipped: true, error: `la demo ya está ${from}` };
+  // The mark goes in when the retry starts, so a retry that dies half-way is not retried again either
+  let claim = db.from(TABLE).update({ demo_status: 'generating', demo_error: retrying ? RETRY_MARK : null, updated_at: now().toISOString() }).eq('id', lead.id).eq('user_id', ownerId);
+  claim = from === null ? claim.is('demo_status', null) : claim.eq('demo_status', from);
+  const { data: claimed, error: claimErr } = await claim.select('id');
+  if (claimErr) throw new Error(`reservar lead: ${claimErr.message}`);
+  if (!claimed?.length) return { ok: false, skipped: true, error: 'otra tarea la está creando' };
+
+  const business = leadBusiness(lead);
+  const template = chooseTemplate(business);
+  try {
+    const slug = demoSlug(lead);
+    // A site already written (and paid for) whose publishing failed is published again, not written again — unless "force"
+    // asks for a fresh one. Such a row has its HTML but no address yet (preview_url null).
+    const { data: kept } = force ? { data: null } : await db.from('generated_sites').select('id, html_content, preview_url').eq('slug', slug).maybeSingle();
+    let html = kept && !kept.preview_url && kept.html_content ? kept.html_content : null;
+    let usedTemplate = template, usage = null, reused = !!html;
+    if (!html) {
+      const site = await build({ business, template });
+      usedTemplate = site.template; usage = site.usage;
+      html = decorateDemo(site.html, {
+        brand: brandName(lead.name).brand,
+        requestUrl: `${publicUrl}/c/${lead.link_token}`,
+        beaconUrl: `${publicUrl}/v/${lead.link_token}`,
+        lang: isEnglishSource(lead.source) ? 'en' : 'es',
+      });
+      // Save it BEFORE publishing: if Vercel fails, the paid HTML is not lost
+      await db.from('generated_sites').upsert({ slug, html_content: html, preview_url: null, status: 'demo' }, { onConflict: 'slug' });
+    }
+    const url = await deploy(slug, html);
+
+    const stamp = now().toISOString();
+    const { data: saved, error: siteErr } = await db.from('generated_sites')
+      .upsert({ slug, html_content: html, preview_url: url, status: 'demo' }, { onConflict: 'slug' })
+      .select('id').single();
+    if (siteErr) throw new Error(`guardar la web: ${siteErr.message}`);
+    const { error: leadErr } = await db.from(TABLE).update({
+      demo_status: 'ready', demo_url: url, demo_template: usedTemplate, demo_at: stamp, demo_error: null, site_id: saved?.id ?? null, updated_at: stamp,
+    }).eq('id', lead.id);
+    if (leadErr) throw new Error(`guardar la demo en el lead: ${leadErr.message}`);
+    return { ok: true, url, template: usedTemplate, usage, reused };
+  } catch (err) {
+    const message = `${retrying ? `${RETRY_MARK} ` : ''}${String(err.message || err)}`.slice(0, 500);
+    await db.from(TABLE).update({ demo_status: 'failed', demo_error: message, updated_at: now().toISOString() }).eq('id', lead.id);
+    return { ok: false, template, error: message };
+  }
+}
+
+// Makes demos for the newest "new" leads that don't have one yet, one after another → { created, failed, results }.
+// With room left it then gives ONE more try to the demos that failed an hour ago or more, or got stuck half-way (20+ min).
+export async function generateDemos({ db, ownerId, publicUrl, limit = 3, build, deploy, log = () => {}, now = () => new Date() }) {
+  const newLeads = () => db.from(TABLE).select('*').eq('user_id', ownerId).eq('status', 'new');
+  const { data: fresh, error } = await newLeads().is('demo_status', null)
+    .order('registered_at', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).order('id').limit(limit);
+  if (error) throw new Error(`cargar leads: ${error.message}`);
+  let leads = fresh || [];
+  if (leads.length < limit) {
+    const { data: again, error: againErr } = await newLeads().in('demo_status', ['failed', 'generating']).order('updated_at').order('id').limit(500);
+    if (againErr) throw new Error(`cargar demos para reintentar: ${againErr.message}`);
+    const t = now().getTime();
+    const due = (again || []).filter(l => !String(l.demo_error || '').startsWith(RETRY_MARK)
+      && Date.parse(l.updated_at || 0) < t - (l.demo_status === 'failed' ? RETRY_AFTER_MS : STUCK_AFTER_MS));
+    leads = [...leads, ...due.slice(0, limit - leads.length)];
+  }
+  const results = [];
+  for (const lead of leads) {
+    const r = await createLeadDemo({ db, ownerId, lead, publicUrl, retry: true, build, deploy, now });
+    log(r.ok ? `✓ ${lead.name} → ${r.url}` : `✗ ${lead.name}: ${r.error}`);
+    results.push({ id: lead.id, name: lead.name, ...r });
+  }
+  return { created: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok && !r.skipped).length, results };
+}
+
+// How many "new" leads already have their demo ready (waiting to be sent)
+export async function readyDemoCount(db, ownerId) {
+  const { data, error } = await db.from(TABLE).select('id').eq('user_id', ownerId).eq('status', 'new').eq('demo_status', 'ready').limit(1000);
+  if (error) throw new Error(error.message);
+  return (data || []).length;
+}
+
+// "All" mode: keeps making demos, a few at a time, until no "new" lead is left without one (a demo that fails now waits an hour
+// for its one retry, so it always ends) or `maxMs` runs out — the next cycle picks up where this one stopped.
+export async function generateAllDemos({ db, ownerId, publicUrl, batch = 5, maxMs = 25 * 60_000, build, deploy, log = () => {}, now = () => Date.now() }) {
+  const deadline = now() + maxMs;
+  let created = 0, failed = 0;
+  while (now() < deadline) {
+    const r = await generateDemos({ db, ownerId, publicUrl, limit: batch, build, deploy, log });
+    created += r.created; failed += r.failed;
+    if (!r.results.length) break;
+  }
+  return { created, failed };
+}
+
+// The email says "la mantengo online 7 días", but the sites stay up 30 days (a lead may still open it or ask for the call
+// later): 30 days after the lead was sent (or after the demo was made, if later) its site is deleted
+// from Vercel, which also frees the project slot. Leads that asked for the call, were called, won, or replied keep theirs.
+// Not yet sent leads ("new") are never expired.
+export const DEMO_DAYS = 30;
+const KEEP = ['requested', 'called', 'won', 'lost', 'replied', 'new'];
+
+// The Vercel project of each site, by the slug it was published with (generated_sites); not by its address, which can carry a suffix
+async function projectNames(db, siteIds) {
+  const names = new Map();
+  for (let i = 0; i < siteIds.length; i += 150) {
+    const { data, error } = await db.from('generated_sites').select('id, slug').in('id', siteIds.slice(i, i + 150));
+    if (error) throw new Error(`cargar webs: ${error.message}`);
+    for (const s of data || []) if (s.slug) names.set(s.id, projectNameOf(s.slug));
+  }
+  return names;
+}
+
+export async function expireDemos({ db, ownerId, now = new Date(), remove = deleteVercelProject, log = () => {} }) {
+  let leads;
+  try {
+    // ALL of them, page by page (a single read stops at 1000 rows and, unordered, could skip the old ones forever)
+    leads = await selectAll(() => db.from(TABLE).select('id, name, status, demo_url, demo_at, pushed_at, site_id')
+      .eq('user_id', ownerId).eq('demo_status', 'ready').not('demo_url', 'is', null).order('id'));
+  } catch (err) { throw new Error(`cargar demos: ${err.message}`); }
+  const cutoff = now.getTime() - DEMO_DAYS * 86_400_000;
+  const due = leads.filter(l => {
+    if (KEEP.includes(l.status)) return false;
+    const since = Math.max(Date.parse(l.pushed_at || 0) || 0, Date.parse(l.demo_at || 0) || 0);
+    return since && since <= cutoff;
+  });
+  const names = await projectNames(db, [...new Set(due.map(l => l.site_id).filter(Boolean))]);
+  let expired = 0, failed = 0;
+  for (const l of due) {
+    try {
+      await remove(names.get(l.site_id) || new URL(l.demo_url).hostname.replace(/\.vercel\.app$/, ''));
+      const stamp = now.toISOString();
+      await db.from(TABLE).update({ demo_status: 'expired', updated_at: stamp }).eq('id', l.id);
+      if (l.site_id) await db.from('generated_sites').update({ status: 'expired' }).eq('id', l.site_id);
+      expired++;
+      log(`✓ caducada la web de ${l.name}`);
+    } catch (err) {
+      failed++;
+      log(`✗ ${l.name}: ${err.message}`);
+    }
+  }
+  return { expired, failed };
+}

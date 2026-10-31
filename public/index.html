@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0A0E1D" />
+  <title>Panel · Web Creator 360</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366F1'/%3E%3Cstop offset='1' stop-color='%238B5CF6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Ctext x='16' y='22' font-family='Arial' font-weight='700' font-size='16' fill='white' text-anchor='middle'%3EW%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'] },
+          colors: {
+            brand: { 50: '#EEF2FF', 100: '#E0E7FF', 200: '#C7D2FE', 300: '#A5B4FC', 400: '#818CF8', 500: '#6366F1', 600: '#4F46E5', 700: '#4338CA', 800: '#3730A3', 900: '#312E81' },
+          },
+          boxShadow: {
+            card: '0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.05)',
+            lift: '0 12px 32px -12px rgba(16,24,40,.22)',
+          },
+        },
+      },
+    };
+  </script>
+  <style type="text/tailwindcss">
+    @layer base {
+      html { -webkit-tap-highlight-color: transparent; }
+      body { @apply bg-[#F4F5F9] text-slate-800 antialiased; font-feature-settings: "cv11", "ss01"; }
+      ::selection { @apply bg-brand-500/20; }
+    }
+
+    @layer components {
+      /* Page structure */
+      .page-head { @apply mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between lg:mb-8; }
+      .page-title { @apply text-2xl font-bold tracking-tight text-slate-900 sm:text-[28px]; text-wrap: balance; }
+      .page-sub { @apply mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-500; }
+      .eyebrow { @apply text-xs font-semibold uppercase tracking-[.12em] text-brand-600; }
+
+      .card { @apply rounded-2xl border border-slate-200/80 bg-white shadow-card; }
+      .card-header { @apply flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6; }
+      .card-title { @apply text-[15px] font-semibold text-slate-900; }
+      .card-sub { @apply mt-0.5 text-[13px] leading-relaxed text-slate-500; }
+      .card-body { @apply p-5 sm:p-6; }
+      .icon-tile { @apply grid h-10 w-10 shrink-0 place-items-center rounded-xl; }
+      .icon-tile svg { @apply h-5 w-5; }
+
+      /* KPIs */
+      .kpi { @apply rounded-2xl border border-slate-200/80 bg-white p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:shadow-lift sm:p-5; }
+      .kpi-label { @apply text-[13px] font-medium text-slate-500; }
+      .kpi-value { @apply mt-3 text-[28px] font-bold leading-none tracking-tight text-slate-900 tabular-nums sm:text-[34px]; }
+      .kpi-foot { @apply mt-2 text-xs text-slate-400; }
+
+      /* Buttons */
+      .btn-primary { @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-gradient-to-b from-brand-500 to-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_8px_20px_-8px_rgba(79,70,229,.7)] transition hover:brightness-110 active:scale-[.98] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/25; }
+      .btn-secondary { @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 active:scale-[.98] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/15; }
+      .btn-danger { @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-gradient-to-b from-rose-500 to-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_-8px_rgba(225,29,72,.6)] transition hover:brightness-110 active:scale-[.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-500/25; }
+      .btn-ghost { @apply inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-brand-600 transition hover:bg-brand-50 disabled:opacity-50; }
+      .btn-primary svg, .btn-secondary svg, .btn-danger svg, .btn-ghost svg { @apply h-4 w-4 shrink-0; }
+      .icon-btn { @apply grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-800; }
+      .icon-btn svg { @apply h-4 w-4; }
+
+      /* Small in-table actions (class names used by the JS renders) */
+      .action-btn { @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1 ring-inset transition active:scale-[.97] disabled:pointer-events-none disabled:opacity-60; }
+      .action-btn svg { @apply h-3.5 w-3.5 shrink-0; }
+      .btn-scrape { @apply bg-amber-50 text-amber-800 ring-amber-200 hover:bg-amber-100; }
+      .btn-generate { @apply bg-violet-50 text-violet-700 ring-violet-200 hover:bg-violet-100; }
+      .btn-send { @apply bg-brand-50 text-brand-700 ring-brand-200 hover:bg-brand-100; }
+      .btn-preview { @apply bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100; }
+      .btn-soft-danger { @apply bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100; }
+      .action-btn.btn-secondary { @apply rounded-lg border-0 px-2.5 py-1.5 text-xs shadow-none ring-slate-200; }
+
+      /* Forms */
+      .input { @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 disabled:bg-slate-50; }
+      .input-icon { @apply pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400; }
+      .label { @apply mb-1.5 block text-[13px] font-medium text-slate-700; }
+      .hint { @apply mt-2 text-xs text-slate-500; }
+
+      /* Badges (class names used by the JS renders) */
+      .badge { @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-semibold leading-none ring-1 ring-inset; }
+      .badge::before { content: ''; @apply h-1.5 w-1.5 rounded-full bg-current opacity-80; }
+      .badge-prospected { @apply bg-slate-100 text-slate-600 ring-slate-200; }
+      .badge-scraped, .badge-pending { @apply bg-amber-50 text-amber-700 ring-amber-200; }
+      .badge-generated, .badge-preview { @apply bg-violet-50 text-violet-700 ring-violet-200; }
+      .badge-sent, .badge-blue { @apply bg-sky-50 text-sky-700 ring-sky-200; }
+      .badge-active, .badge-completed, .badge-green { @apply bg-emerald-50 text-emerald-700 ring-emerald-200; }
+      .badge-expired, .badge-red { @apply bg-rose-50 text-rose-700 ring-rose-200; }
+
+      /* Tables */
+      .table-wrap { @apply overflow-x-auto; }
+      .data-table { @apply w-full text-sm; }
+      .data-table thead th:first-child, .data-table tbody td:first-child { @apply pl-4 sm:pl-6; }
+      .data-table thead th:last-child, .data-table tbody td:last-child { @apply pr-4 sm:pr-6; }
+      .data-table thead th { @apply whitespace-nowrap border-b border-slate-100 bg-slate-50/80 px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[.08em] text-slate-500 sm:px-6; }
+      .data-table tbody td { @apply px-3 py-3.5 align-middle sm:px-6; }
+      .data-table tbody tr { @apply border-b border-slate-100 transition-colors last:border-0; }
+      .data-table tbody tr.table-row:hover { @apply bg-slate-50/70; }
+      .avatar { @apply grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-bold; }
+
+      .empty-state { @apply flex flex-col items-center gap-3 px-6 py-14 text-center; }
+      .empty-icon { @apply grid h-12 w-12 place-items-center rounded-2xl bg-slate-100 text-slate-400; }
+      .empty-icon svg { @apply h-6 w-6; }
+      .empty-title { @apply max-w-sm text-sm font-medium text-slate-500; }
+      .skeleton { @apply animate-pulse rounded-md bg-slate-200/70; }
+
+      /* Sidebar */
+      .nav-group { @apply px-3 pb-1.5 pt-6 text-[10.5px] font-semibold uppercase tracking-[.14em] text-slate-500; }
+      .nav-item { @apply relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[13.5px] font-medium text-slate-400 transition hover:bg-white/[.06] hover:text-white; }
+      .nav-item svg { @apply h-[18px] w-[18px] shrink-0 opacity-80; }
+      .nav-item.active { @apply bg-white/[.08] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,.06)]; }
+      .nav-item.active svg { @apply text-brand-300 opacity-100; }
+      .nav-item.active::before { content: ''; @apply absolute -left-3 bottom-1.5 top-1.5 w-1 rounded-r-full bg-gradient-to-b from-brand-400 to-violet-500; }
+      .nav-count { @apply ml-auto min-w-[1.6rem] rounded-full bg-white/[.08] px-1.5 py-0.5 text-center text-[11px] font-semibold tabular-nums text-slate-300 transition-opacity; }
+      .nav-item.active .nav-count { @apply bg-brand-500/25 text-brand-200; }
+
+      /* Lead funnel pills */
+      .stat-pill { @apply flex shrink-0 snap-start items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-left shadow-card transition hover:-translate-y-0.5 hover:border-slate-300; }
+      .stat-pill.is-active { @apply border-brand-300 ring-4 ring-brand-500/10; }
+
+      /* CSV drop zone */
+      .dropzone { @apply flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 px-6 py-8 text-center transition hover:border-brand-300 hover:bg-brand-50/40 focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/10; }
+      .dropzone.is-dragging { @apply border-brand-400 bg-brand-50 ring-4 ring-brand-500/10; }
+      .dropzone > * { pointer-events: none; }
+
+      /* Live logs */
+      .console { @apply max-h-64 space-y-1 overflow-y-auto bg-[#0B1022] p-4 font-mono text-[12.5px] leading-relaxed text-slate-300; }
+      .alert-error { @apply rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] text-rose-700; }
+
+      /* Toasts and dialogs (the JS creates them) */
+      .toast { @apply pointer-events-auto flex w-full items-start gap-3 rounded-2xl border bg-white p-3.5 pr-3 text-sm shadow-lift sm:w-[380px]; animation: toast-in .3s cubic-bezier(.2,.9,.3,1.15) both; }
+      .toast.toast-out { animation: toast-out .2s ease both; }
+      .modal-backdrop { @apply fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center; animation: fade .18s ease both; }
+      .modal-box { @apply w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl sm:p-7; animation: pop .24s cubic-bezier(.2,.9,.3,1.15) both; }
+      .modal-backdrop.closing { animation: fade-out .15s ease both; }
+    }
+
+    .tab-hidden { display: none !important; }
+    .fade-in { animation: fade-up .32s ease both; }
+    select.input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .75rem center; background-size: 16px; padding-right: 2.25rem; }
+
+    .pulse-dot { width: 8px; height: 8px; border-radius: 9999px; display: inline-block; flex-shrink: 0; }
+    .pulse-dot.online { background: #10B981; animation: ping 2.2s infinite; }
+    .pulse-dot.offline { background: #F43F5E; }
+
+    /* Sidebar: always visible on large screens, a drawer below that */
+    #sidebar { transform: translateX(-100%); transition: transform .25s ease; background: radial-gradient(120% 55% at 0% 0%, rgba(99,102,241,.20), transparent 60%), radial-gradient(90% 40% at 100% 100%, rgba(139,92,246,.10), transparent 60%), #0A0E1D; }
+    #sidebar-backdrop { display: none; }
+    body.sidebar-open #sidebar { transform: none; }
+    body.sidebar-open #sidebar-backdrop { display: block; animation: fade .2s ease both; }
+    @media (max-width: 1023px) { body.sidebar-open { overflow: hidden; } }
+    @media (min-width: 1024px) { #sidebar { transform: none; } body.sidebar-open #sidebar-backdrop { display: none; } }
+
+    @keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fade-out { to { opacity: 0; } }
+    @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(-8px) scale(.97); } to { opacity: 1; transform: none; } }
+    @keyframes toast-out { to { opacity: 0; transform: translateY(-6px); } }
+    @keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,.45); } 70% { box-shadow: 0 0 0 7px rgba(16,185,129,0); } 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+
+  <!-- ─── SIDEBAR ─────────────────────────────────────────────────────────── -->
+  <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 flex w-64 flex-col text-slate-300" aria-label="Navegación principal">
+    <div class="flex h-16 items-center gap-3 border-b border-white/[.06] px-5">
+      <div class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 text-sm font-bold text-white shadow-[0_8px_20px_-6px_rgba(99,102,241,.8)]">W</div>
+      <div class="leading-tight">
+        <div class="text-[15px] font-semibold text-white">Web Creator</div>
+        <div class="text-[11px] font-semibold tracking-[.22em] text-brand-300">360</div>
+      </div>
+      <button id="sidebar-close" type="button" class="ml-auto grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white lg:hidden" aria-label="Cerrar menú"><i data-lucide="x" class="h-5 w-5"></i></button>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto px-3 pb-4">
+
+      <div class="nav-group">LLCs nuevas</div>
+      <button class="nav-item" data-tab="leads-sources"><i data-lucide="database"></i><span>Fuentes</span></button>
+      <button class="nav-item" data-tab="leads-list"><i data-lucide="users"></i><span>Leads</span><span class="nav-count" id="count-leads-new">0</span></button>
+      <button class="nav-item" data-tab="leads-send"><i data-lucide="rocket"></i><span>Envío</span></button>
+
+    </nav>
+
+    <div class="border-t border-white/[.06] px-5 py-4 text-[11px] text-slate-500">Las webs de demo se retiran de Vercel a los 30 días del envío.</div>
+  </aside>
+  <div id="sidebar-backdrop" class="fixed inset-0 z-30 bg-slate-900/50 backdrop-blur-sm lg:hidden"></div>
+
+  <div class="min-h-screen lg:pl-64">
+
+    <!-- ─── TOPBAR ────────────────────────────────────────────────────────── -->
+    <header class="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl">
+      <div class="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8">
+        <button id="menu-btn" type="button" class="-ml-1 grid h-10 w-10 place-items-center rounded-xl text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Abrir menú"><i data-lucide="menu" class="h-5 w-5"></i></button>
+        <nav class="flex min-w-0 items-center gap-2 text-sm" aria-label="Ruta">
+          <span id="crumb-section" class="hidden text-slate-400 sm:inline">LLCs nuevas</span>
+          <i data-lucide="chevron-right" class="hidden h-4 w-4 text-slate-300 sm:block"></i>
+          <span id="crumb-page" class="truncate font-semibold text-slate-900">Leads</span>
+        </nav>
+        <div class="ml-auto flex items-center gap-2">
+          <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm" title="Estado del servidor">
+            <span class="pulse-dot offline" id="status-dot"></span><span id="status-text" class="hidden sm:inline">Conectando…</span>
+          </div>
+          <button data-goto="leads-send" type="button" class="btn-secondary hidden !px-3 !py-2 text-[13px] md:inline-flex"><i data-lucide="bot"></i>Autopilot</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+
+      <!-- ─── LLCs NUEVAS · FUENTES ───────────────────────────────────────── -->
+      <section id="tab-leads-sources" class="tab-hidden">
+        <div class="page-head">
+          <div><p class="eyebrow">LLCs nuevas</p><h1 class="page-title mt-1.5">Fuentes de leads</h1><p class="page-sub">Empresas recién registradas desde el registro público o desde tus propios archivos. Van directas a Instantly; su web se crea cuando piden la llamada.</p></div>
+        </div>
+
+        <div class="leads-error alert-error mb-6 hidden"></div>
+
+        <div class="grid items-start gap-6 xl:grid-cols-5">
+          <div class="card xl:col-span-5">
+            <div class="card-body">
+              <div class="flex items-start gap-4">
+                <span class="icon-tile bg-amber-50 text-amber-600"><i data-lucide="map-pin"></i></span>
+                <div class="min-w-0 flex-1"><h2 class="card-title">Google Maps · negocios sin web</h2><p class="card-sub">Busca en Google Maps negocios que no tienen página web (Florida, Texas y Nueva Jersey), saca su email de su página de Facebook (comprobando que es el mismo negocio) y los guarda como leads de la campaña 2, que se escribe en inglés. Cada búsqueda es una ciudad distinta, en rotación. Los dueños latinos salen marcados con una estrella.</p></div>
+                <span id="maps-pill" class="badge badge-prospected shrink-0">…</span>
+              </div>
+              <p id="maps-hint" class="mt-4 hidden rounded-xl border px-3.5 py-3 text-[13px] leading-relaxed"></p>
+              <div class="mt-5 flex items-start gap-2.5 rounded-xl bg-slate-50 px-3.5 py-3 text-[13px] text-slate-600">
+                <i data-lucide="clock" class="mt-0.5 h-4 w-4 shrink-0 text-slate-400"></i><span id="maps-last-run">Cargando…</span>
+              </div>
+              <div class="mt-5 flex flex-wrap items-end gap-3">
+                <div><label class="label" for="maps-max">Negocios por búsqueda</label><input type="number" id="maps-max" min="1" max="200" value="20" class="input w-32" /></div>
+                <div><label class="label" for="maps-lookups">Búsquedas de email (Facebook)</label><input type="number" id="maps-lookups" min="0" max="200" value="20" class="input w-32" /></div>
+                <button id="maps-preview-btn" class="btn-secondary"><i data-lucide="eye"></i>Vista previa</button>
+                <button id="maps-import-btn" class="btn-primary"><i data-lucide="download"></i>Buscar y guardar</button>
+              </div>
+              <p class="hint">Las dos gastan crédito de Apify: unos $0,006 por negocio buscado en Maps más unos $0,015 por cada búsqueda de email (sale email en ~1 de cada 5). La vista previa busca igual, pero no guarda nada. Pon pocos para probar.</p>
+              <div id="maps-result" class="mt-5 hidden"></div>
+            </div>
+          </div>
+
+          <div class="card xl:col-span-2">
+            <div class="card-body">
+              <div class="flex items-start gap-4">
+                <span class="icon-tile bg-sky-50 text-sky-600"><i data-lucide="landmark"></i></span>
+                <div class="min-w-0"><h2 class="card-title">Registro de LLCs nuevas</h2><p class="card-sub">Descarga las LLCs recién registradas con email, comprueba que el dominio del email existe y descarta a quien ya tiene web propia. Solo se quedan los dueños con señal latina: van a la campaña en español.</p></div>
+              </div>
+              <div class="mt-5 flex items-start gap-2.5 rounded-xl bg-slate-50 px-3.5 py-3 text-[13px] text-slate-600">
+                <i data-lucide="clock" class="mt-0.5 h-4 w-4 shrink-0 text-slate-400"></i><span id="ct-last-run">Cargando…</span>
+              </div>
+              <div class="mt-5">
+                <label class="label" for="ct-days">Últimos días <span class="font-normal text-slate-400">(opcional)</span></label>
+                <input type="number" id="ct-days" min="1" max="3650" class="input" placeholder="Desde la última importación" />
+              </div>
+              <div class="mt-4 grid grid-cols-2 gap-2">
+                <button id="ct-preview-btn" class="btn-secondary"><i data-lucide="eye"></i>Vista previa</button>
+                <button id="ct-import-btn" class="btn-primary"><i data-lucide="download"></i>Importar</button>
+              </div>
+              <p class="hint">La primera vez descarga los últimos 90 días. Repetirlo nunca duplica leads.</p>
+              <div id="ct-result" class="mt-5 hidden"></div>
+            </div>
+          </div>
+
+          <div class="card xl:col-span-3">
+            <div class="card-body">
+              <div class="mb-5 flex items-start gap-4">
+                <span class="icon-tile bg-emerald-50 text-emerald-600"><i data-lucide="file-spreadsheet"></i></span>
+                <div class="min-w-0"><h2 class="card-title">Importar un CSV</h2><p class="card-sub">Por ejemplo el que genera tu script de Python. Solo son obligatorios el nombre de la empresa y el email; el resto se asigna solo cuando las columnas tienen nombres habituales.</p></div>
+              </div>
+
+              <label id="csv-drop" for="csv-file" class="dropzone">
+                <input type="file" id="csv-file" accept=".csv,.txt,text/csv" class="sr-only" />
+                <span class="icon-tile bg-white text-brand-600 shadow-sm ring-1 ring-slate-200"><i data-lucide="cloud-upload"></i></span>
+                <span class="text-sm font-semibold text-slate-800">Arrastra tu archivo aquí <span class="text-brand-600">o haz clic para elegirlo</span></span>
+                <span class="text-xs text-slate-500">CSV de hasta 8 MB · separado por comas, punto y coma o tabuladores</span>
+              </label>
+
+              <div id="csv-file-row" class="mt-3 flex hidden items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5">
+                <i data-lucide="file-check-2" class="h-5 w-5 shrink-0 text-emerald-600"></i>
+                <span id="csv-file-name" class="min-w-0 flex-1 truncate text-sm font-medium text-slate-800"></span>
+                <button id="csv-file-clear" type="button" title="Quitar archivo" aria-label="Quitar archivo" class="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"><i data-lucide="x" class="h-4 w-4"></i></button>
+              </div>
+
+              <div id="csv-mapper" class="mt-6 hidden">
+                <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <h3 class="text-sm font-semibold text-slate-900">¿Qué columna es cada dato?</h3>
+                  <span id="csv-file-info" class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"></span>
+                </div>
+                <div id="csv-mapping-grid" class="grid gap-x-4 gap-y-3 sm:grid-cols-2"></div>
+
+                <p class="mb-2 mt-6 text-[11px] font-semibold uppercase tracking-[.08em] text-slate-500">Primeras filas del archivo</p>
+                <div class="overflow-x-auto rounded-xl border border-slate-200"><table id="csv-sample" class="w-full text-xs"></table></div>
+
+                <div class="mt-6 flex flex-wrap items-center gap-3">
+                  <button id="csv-check-btn" class="btn-secondary"><i data-lucide="eye"></i>Comprobar</button>
+                  <button id="csv-import-btn" class="btn-primary"><i data-lucide="upload"></i>Importar</button>
+                  <span id="csv-missing" class="text-[13px] font-medium text-amber-700"></span>
+                </div>
+              </div>
+              <div id="csv-result" class="mt-5 hidden"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── LLCs NUEVAS · LEADS ─────────────────────────────────────────── -->
+      <section id="tab-leads-list" class="tab-hidden">
+        <div class="page-head">
+          <div><p class="eyebrow">LLCs nuevas</p><h1 class="page-title mt-1.5">Leads</h1><p class="page-sub">Cada lead avanza solo: Instantly lo envía, pasa a «Abrió el enlace» cuando abre su página y a «Pidió llamada» cuando deja su teléfono. Tú marcas lo que pasa después.</p></div>
+          <div class="flex gap-2">
+            <button data-goto="leads-sources" class="btn-secondary"><i data-lucide="download"></i>Importar</button>
+            <button data-goto="leads-send" class="btn-primary"><i data-lucide="rocket"></i>Enviar</button>
+          </div>
+        </div>
+
+        <div class="leads-error alert-error mb-6 hidden"></div>
+
+        <div id="leads-funnel" class="-mx-4 mb-5 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0"></div>
+
+        <div class="card overflow-hidden">
+          <div class="border-b border-slate-100 px-4 py-4 sm:px-6">
+            <div class="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center">
+              <div class="relative col-span-2 lg:min-w-[240px] lg:flex-1"><i data-lucide="search" class="input-icon"></i><input type="search" id="lf-q" class="input !py-2 pl-10" placeholder="Buscar empresa, email o ciudad" /></div>
+              <select id="lf-status" class="input !py-2 lg:w-auto" aria-label="Estado"></select>
+              <select id="lf-sector" class="input !py-2 lg:w-auto" aria-label="Sector"></select>
+              <select id="lf-priority" class="input !py-2 lg:w-auto" aria-label="Prioridad">
+                <option value="">Toda prioridad</option>
+                <option value="A">Prioridad A</option>
+                <option value="B">Prioridad B</option>
+              </select>
+              <select id="lf-source" class="input !py-2 lg:w-auto" aria-label="Origen">
+                <option value="">Todo origen</option>
+                <option value="ct_registry">Registro oficial</option>
+                <option value="csv_import">CSV</option>
+                <option value="gmaps">Google Maps (sin web)</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Empresa</th><th class="hidden lg:table-cell">Email</th><th class="hidden md:table-cell">Sector</th><th class="hidden 2xl:table-cell">Registro</th><th class="hidden sm:table-cell">Estado</th><th class="hidden text-right sm:table-cell">Acción</th></tr></thead>
+              <tbody id="leads-table"></tbody>
+            </table>
+          </div>
+          <div class="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-[13px] text-slate-500 sm:px-6">
+            <span id="leads-range" class="tabular-nums"></span>
+            <div class="flex gap-2">
+              <button id="leads-prev" class="btn-secondary !px-3 !py-1.5 text-[13px]"><i data-lucide="chevron-left"></i><span class="hidden sm:inline">Anterior</span></button>
+              <button id="leads-next" class="btn-secondary !px-3 !py-1.5 text-[13px]"><span class="hidden sm:inline">Siguiente</span><i data-lucide="chevron-right"></i></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── LLCs NUEVAS · ENVÍO ─────────────────────────────────────────── -->
+      <section id="tab-leads-send" class="tab-hidden">
+        <div class="page-head">
+          <div><p class="eyebrow">LLCs nuevas</p><h1 class="page-title mt-1.5">Envío con Instantly</h1><p class="page-sub">Instantly manda un solo email por lead desde sus propios buzones. Aquí decides qué se envía y cuándo, o dejas que el autopilot lo haga por ti.</p></div>
+        </div>
+
+        <div class="leads-error alert-error mb-6 hidden"></div>
+
+        <div class="grid items-start gap-6 xl:grid-cols-3">
+          <div class="space-y-6 xl:col-span-2">
+
+            <div class="card relative overflow-hidden">
+              <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-500 via-violet-500 to-fuchsia-500"></div>
+              <div class="card-body">
+                <div class="flex items-start gap-4">
+                  <span class="icon-tile bg-gradient-to-br from-brand-500 to-violet-500 text-white shadow-[0_8px_20px_-8px_rgba(99,102,241,.8)]"><i data-lucide="bot"></i></span>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2"><h2 class="card-title">Autopilot</h2><span id="autopilot-pill" class="badge badge-prospected">…</span></div>
+                    <p class="card-sub">Busca LLCs nuevas y las manda a Instantly por su cuenta. Corre en el servidor de la campaña, aunque tengas el ordenador apagado.</p>
+                  </div>
+                  <button id="autopilot-toggle" type="button" role="switch" aria-checked="false" aria-label="Activar o desactivar el autopilot" class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full bg-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-500/20">
+                    <span class="inline-block h-5 w-5 translate-x-1 transform rounded-full bg-white shadow transition-transform"></span>
+                  </button>
+                </div>
+                <div class="mt-5 grid gap-3 sm:grid-cols-2">
+                  <div class="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-3">
+                    <i data-lucide="calendar-clock" class="h-5 w-5 shrink-0 text-brand-600"></i>
+                    <div><p class="text-[13px] font-semibold text-slate-800">Busca leads nuevos</p><p class="text-xs text-slate-500">Cada día a las 7:00 (Nueva York)</p></div>
+                  </div>
+                  <div class="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-3">
+                    <i data-lucide="send" class="h-5 w-5 shrink-0 text-violet-600"></i>
+                    <div><p class="text-[13px] font-semibold text-slate-800">Los envía a Instantly</p><p class="text-xs text-slate-500">Cada 3 horas</p></div>
+                  </div>
+                </div>
+                <label class="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-3">
+                  <input type="checkbox" id="autopilot-all" class="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
+                  <span><span class="block text-[13px] font-semibold text-slate-800">Modo «todas»: crear todas las webs y enviar todos los leads listos</span><span class="block text-xs leading-relaxed text-slate-500">Sin el tope de 3 webs por ciclo ni el límite de «Leads por envío». Cada web cuesta unos 0,05–0,15 $. Instantly reparte los envíos según el límite diario de la campaña.</span></span>
+                </label>
+                <div class="mt-5 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-5">
+                  <div><label class="label" for="autopilot-limit">Leads por envío</label><input type="number" id="autopilot-limit" min="1" max="1000" class="input w-32" /></div>
+                  <button id="autopilot-save-btn" class="btn-secondary"><i data-lucide="check"></i>Guardar</button>
+                  <p id="autopilot-status" class="w-full text-[13px] text-slate-500"></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" id="demos-card">
+              <div class="card-body">
+                <div class="flex items-start gap-4">
+                  <span class="icon-tile bg-violet-50 text-violet-600"><i data-lucide="wand-sparkles"></i></span>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2"><h2 class="card-title">Webs de demo</h2><span id="demos-pill" class="badge badge-prospected">…</span></div>
+                    <p class="card-sub">Cada lead recibe en el email su propia web ya publicada, escrita por Claude sobre la plantilla de su sector. Solo se envían los leads con su web lista.</p>
+                  </div>
+                </div>
+                <p id="demos-hint" class="mt-4 hidden rounded-xl border px-3.5 py-3 text-[13px] leading-relaxed"></p>
+                <div class="mt-5 grid grid-cols-3 gap-3">
+                  <div class="rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-3"><p class="text-xs font-medium text-slate-500">Listas para enviar</p><p id="demos-ready" class="mt-1 text-xl font-bold tabular-nums text-slate-900">—</p></div>
+                  <div class="rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-3"><p class="text-xs font-medium text-slate-500">Creándose</p><p id="demos-generating" class="mt-1 text-xl font-bold tabular-nums text-slate-900">—</p></div>
+                  <div class="rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-3"><p class="text-xs font-medium text-slate-500">Fallidas</p><p id="demos-failed" class="mt-1 text-xl font-bold tabular-nums text-slate-900">—</p></div>
+                </div>
+                <div class="mt-5 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-5">
+                  <button id="demos-btn" class="btn-secondary"><i data-lucide="sparkles"></i>Crear 3 webs ahora</button>
+                  <p class="text-[13px] text-slate-500">Cada web tarda alrededor de un minuto y cuesta unos 0,08–0,14 $. El autopilot las crea solo, justo antes de cada envío.</p>
+                </div>
+                <div id="demos-result" class="mt-5 hidden"></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-body">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="flex items-start gap-4">
+                    <span class="icon-tile bg-brand-50 text-brand-600"><i data-lucide="send"></i></span>
+                    <div><h2 class="card-title">Enviar ahora</h2><p class="card-sub">Elige qué leads mandar. Salen primero los registrados más recientemente.</p></div>
+                  </div>
+                  <span id="send-mode" class="badge shrink-0"></span>
+                </div>
+                <p id="send-hint" class="hidden"></p>
+
+                <div class="mt-5">
+                  <label class="label" for="send-campaign">Campaña de Instantly</label>
+                  <select id="send-campaign" class="input">
+                    <option value="llc">LLCs nuevas</option>
+                    <option value="maps">Google Maps · negocios sin web</option>
+                  </select>
+                  <p id="send-campaign-hint" class="hint">Cada campaña tiene su propio texto de email en Instantly.</p>
+                </div>
+
+                <div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <div>
+                    <label class="label" for="send-source">Origen</label>
+                    <select id="send-source" class="input">
+                      <option value="">Todo origen</option>
+                      <option value="ct_registry">Registro oficial</option>
+                      <option value="csv_import">CSV</option>
+                <option value="gmaps">Google Maps (sin web)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="label" for="send-batch">Importación</label>
+                    <select id="send-batch" class="input"><option value="">Todas</option></select>
+                  </div>
+                  <div>
+                    <label class="label" for="send-sector">Sector</label>
+                    <select id="send-sector" class="input"></select>
+                  </div>
+                  <div>
+                    <label class="label" for="send-priority">Prioridad</label>
+                    <select id="send-priority" class="input">
+                      <option value="">Toda prioridad</option>
+                      <option value="A">Prioridad A</option>
+                      <option value="B">Prioridad B</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="mt-5 flex flex-col gap-4 rounded-2xl border border-slate-200/70 bg-gradient-to-br from-slate-50 to-brand-50/50 p-4 sm:flex-row sm:items-end sm:p-5">
+                  <div class="flex-1">
+                    <p class="text-[13px] font-medium text-slate-500">Leads listos con estos filtros</p>
+                    <p class="mt-1 text-4xl font-bold tracking-tight text-slate-900 tabular-nums"><span id="send-new-count">—</span></p>
+                  </div>
+                  <div class="flex items-end gap-3">
+                    <div><label class="label" for="send-limit">Cuántos</label><input type="number" id="send-limit" min="1" max="1000" value="100" class="input w-28" /></div>
+                    <button id="send-btn" class="btn-primary"><i data-lucide="rocket"></i>Enviar a Instantly</button>
+                  </div>
+                </div>
+                <div id="send-result" class="mt-5 hidden"></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-body flex flex-col gap-4 sm:flex-row sm:items-center">
+                <span class="icon-tile bg-emerald-50 text-emerald-600"><i data-lucide="mail-check"></i></span>
+                <div class="flex-1"><h2 class="card-title">Envíos, rebotes, bajas y respuestas</h2><p id="poll-hint" class="card-sub">Instantly no avisa solo, así que le preguntamos.</p></div>
+                <button id="poll-btn" class="btn-secondary"><i data-lucide="refresh-cw"></i>Comprobar ahora</button>
+              </div>
+              <div id="poll-result" class="hidden px-5 pb-5 sm:px-6 sm:pb-6"></div>
+            </div>
+          </div>
+
+          <div class="card xl:sticky xl:top-24">
+            <div class="card-header"><div><h2 class="card-title">Texto del email</h2><p class="card-sub">Pégalo en tu campaña de Instantly. Es un solo email, sin seguimientos. <span id="tpl-version" class="font-semibold text-slate-700"></span></p></div></div>
+            <div class="card-body space-y-4">
+              <div>
+                <div class="mb-1.5 flex items-center justify-between"><label class="label !mb-0" for="tpl-subject">Asunto</label><button data-copy="tpl-subject" class="btn-ghost"><i data-lucide="copy"></i>Copiar</button></div>
+                <input type="text" id="tpl-subject" readonly class="input bg-slate-50" />
+              </div>
+              <div>
+                <div class="mb-1.5 flex items-center justify-between"><label class="label !mb-0" for="tpl-body">Mensaje</label><button data-copy="tpl-body" class="btn-ghost"><i data-lucide="copy"></i>Copiar</button></div>
+                <textarea id="tpl-body" readonly rows="16" class="input bg-slate-50 font-mono text-[12.5px] leading-relaxed"></textarea>
+              </div>
+              <div><p class="label">Variables que rellena Instantly</p><div id="tpl-vars" class="flex flex-wrap gap-1.5"></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <div id="toast-stack" class="pointer-events-none fixed inset-x-4 top-4 z-[60] flex flex-col items-center gap-2 sm:inset-x-auto sm:right-6 sm:items-end" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+  <script src="app.js"></script>
+  <script src="leads.js"></script>
+</body>
+</html>

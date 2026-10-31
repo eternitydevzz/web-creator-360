@@ -1,0 +1,324 @@
+// Webs de demo de las LLCs nuevas: se crean (motor de plantillas + Vercel) ANTES de enviar el lead a Instantly, el
+// email enlaza a ellas con {{web}}, y abrirlas marca al lead como "engaged". Claude y Vercel están simulados.
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import express from 'express';
+import { createMemoryDb } from './helpers/memoryDb.mjs';
+import { createLeadDemo, generateDemos, decorateDemo, demoSlug, readyDemoCount } from '../src/services/leadDemos.js';
+import { loadInstantlyConfig, pushLeads } from '../src/services/instantly.js';
+import { createCampaignApp } from '../src/campaignApp.js';
+import { createLeadsRouter } from '../src/routes/leads.js';
+
+const OWNER = 'owner-1';
+const PUBLIC = 'https://campana.example.com';
+const mkLead = (i, over = {}) => ({
+  id: `L${i}`, user_id: OWNER, source: 'ct_registry', external_id: `E${i}`, name: `SOL ${i} TAX LLC`, email: `l${i}@gmail.com`,
+  city: 'Hartford', sector: 'taxes', naics_code: 'Tax Preparation Services (541213)', registered_at: `2026-09-${String(28 - i).padStart(2, '0')}`,
+  status: 'new', demo_status: null, link_token: `TOKEN${String(i).padStart(19, '0')}`, ...over,
+});
+const row = (db, id) => db.rows('new_business_leads').find(l => l.id === id);
+const PAGE = '<!DOCTYPE html><html><head><title>Sol</title></head><body><h1>Sol Tax</h1></body></html>';
+
+// Motor y Vercel simulados: guardan con qué se les llamó
+function fakes({ failBuild = false, failDeploy = false } = {}) {
+  const built = [], deployed = [];
+  const build = async ({ business, template }) => {
+    built.push({ business, template });
+    if (failBuild) throw new Error('La web aún menciona el negocio de ejemplo (Carmen): no se publica');
+    return { html: PAGE, template, usage: { input_tokens: 14000, output_tokens: 9000 } };
+  };
+  const deploy = async (slug, html) => {
+    deployed.push({ slug, html });
+    if (failDeploy) throw new Error('Token de Vercel inválido');
+    return `https://${slug}.vercel.app`;
+  };
+  return { build, deploy, built, deployed };
+}
+
+test('demoSlug: nombre de la marca + 4 caracteres del token, en minúsculas y con guiones', () => {
+  assert.equal(demoSlug(mkLead(1)), 'sol-1-tax-toke');
+  assert.equal(demoSlug({ name: 'Doña Rosa & Hijos, LLC', link_token: 'Ab_9-xyz' }), 'dona-rosa-and-hijos-ab9x');
+});
+
+test('decorateDemo: no se indexa, lleva la barra "La quiero" hacia su página y el aviso de visita', () => {
+  const html = decorateDemo(PAGE, { brand: 'Sol <Tax>', requestUrl: `${PUBLIC}/c/TOK`, beaconUrl: `${PUBLIC}/v/TOK` });
+  assert.match(html, /<head>\n<meta name="robots" content="noindex, nofollow">/);
+  assert.match(html, /Web de muestra para Sol &lt;Tax&gt; · fotos y datos de ejemplo/);
+  assert.match(html, /<a href="https:\/\/campana\.example\.com\/c\/TOK">La quiero<\/a>/);
+  assert.match(html, /sendBeacon\(u\)/);
+  assert.match(html, /"https:\/\/campana\.example\.com\/v\/TOK"/);
+  assert.match(html, /<\/script>\n<\/body><\/html>$/, 'la barra va justo antes de </body>');
+});
+
+test('createLeadDemo: escribe la web con la plantilla de su sector, la publica y la guarda en el lead', async () => {
+  const db = createMemoryDb({ new_business_leads: [mkLead(1)] });
+  const f = fakes();
+  const r = await createLeadDemo({ db, ownerId: OWNER, lead: mkLead(1), publicUrl: PUBLIC, build: f.build, deploy: f.deploy });
+  assert.equal(r.ok, true);
+  assert.equal(r.url, 'https://sol-1-tax-toke.vercel.app');
+  assert.equal(f.built[0].template, 'general', 'taxes → plantilla general');
+  assert.deepEqual(f.built[0].business, { name: 'SOL 1 TAX LLC', city: 'Hartford', state: 'CT', email: 'l1@gmail.com', sector: 'taxes', naics_code: 'Tax Preparation Services (541213)', activity: 'Tax Preparation Services (541213)', registered_at: '2026-09-27' });
+  assert.match(f.deployed[0].html, /La quiero/, 'lo publicado es la web ya decorada');
+  const l = row(db, 'L1');
+  assert.deepEqual([l.demo_status, l.demo_url, l.demo_template, l.demo_error], ['ready', r.url, 'general', null]);
+  const site = db.rows('generated_sites')[0];
+  assert.deepEqual([site.slug, site.status, site.preview_url, l.site_id], ['sol-1-tax-toke', 'demo', r.url, site.id]);
+  assert.equal(l.status, 'new', 'crear la web no cambia el estado del embudo');
+});
+
+test('createLeadDemo: si falla (motor o Vercel) el lead queda "failed" con el motivo, y no se publica nada roto', async () => {
+  for (const opts of [{ failBuild: true }, { failDeploy: true }]) {
+    const db = createMemoryDb({ new_business_leads: [mkLead(1)] });
+    const f = fakes(opts);
+    const r = await createLeadDemo({ db, ownerId: OWNER, lead: mkLead(1), publicUrl: PUBLIC, build: f.build, deploy: f.deploy });
+    assert.equal(r.ok, false);
+    const l = row(db, 'L1');
+    assert.equal(l.demo_status, 'failed');
+    assert.match(l.demo_error, opts.failBuild ? /negocio de ejemplo/ : /Vercel/);
+    assert.equal(l.demo_url, undefined);
+    // Si falla Claude no hay nada; si falla solo Vercel, la web ya pagada queda guardada (sin dirección) para no volver a pagarla
+    assert.deepEqual(db.rows('generated_sites').map(s => s.preview_url), opts.failBuild ? [] : [null]);
+  }
+});
+
+test('createLeadDemo: tras un fallo de Vercel, el reintento solo vuelve a publicar: NO llama otra vez a Claude', async () => {
+  const db = createMemoryDb({ new_business_leads: [mkLead(1)] });
+  const first = fakes({ failDeploy: true });
+  assert.equal((await createLeadDemo({ db, ownerId: OWNER, lead: mkLead(1), publicUrl: PUBLIC, build: first.build, deploy: first.deploy })).ok, false);
+  assert.equal(first.built.length, 1);
+  db.rows('new_business_leads')[0].demo_status = null;           // lo que hace "devolver a sin web"
+  const second = fakes();
+  const r = await createLeadDemo({ db, ownerId: OWNER, lead: row(db, 'L1'), publicUrl: PUBLIC, build: second.build, deploy: second.deploy });
+  assert.deepEqual([r.ok, r.reused, second.built.length], [true, true, 0]);
+  assert.equal(second.deployed[0].html, first.deployed[0].html, 'publica el mismo HTML ya escrito');
+  assert.equal(db.rows('generated_sites')[0].preview_url, r.url);
+  // "force" (Rehacer web) sí escribe una nueva
+  const third = fakes();
+  assert.equal((await createLeadDemo({ db, ownerId: OWNER, lead: row(db, 'L1'), publicUrl: PUBLIC, force: true, build: third.build, deploy: third.deploy })).reused, false);
+  assert.equal(third.built.length, 1);
+});
+
+test('createLeadDemo: nunca hace dos veces la misma web (ya lista, o creándose ahora mismo)', async () => {
+  const f = fakes();
+  const ready = createMemoryDb({ new_business_leads: [mkLead(1, { demo_status: 'ready', demo_url: 'https://x.vercel.app' })] });
+  assert.equal((await createLeadDemo({ db: ready, ownerId: OWNER, lead: row(ready, 'L1'), publicUrl: PUBLIC, ...f })).skipped, true);
+  const busy = createMemoryDb({ new_business_leads: [mkLead(1, { demo_status: 'generating', updated_at: new Date().toISOString() })] });
+  assert.equal((await createLeadDemo({ db: busy, ownerId: OWNER, lead: row(busy, 'L1'), publicUrl: PUBLIC, force: true, ...f })).skipped, true);
+  assert.equal(f.built.length, 0);
+  // Otra tarea la reservó entre medias: el lead que tenemos en memoria está desfasado
+  const race = createMemoryDb({ new_business_leads: [mkLead(1, { demo_status: 'generating' })] });
+  assert.equal((await createLeadDemo({ db: race, ownerId: OWNER, lead: mkLead(1), publicUrl: PUBLIC, ...f })).skipped, true);
+  assert.equal(f.built.length, 0);
+});
+
+test('createLeadDemo: "force" rehace una web lista o fallida; una atascada más de 20 min se puede rehacer', async () => {
+  const f = fakes();
+  const db = createMemoryDb({ new_business_leads: [mkLead(1, { demo_status: 'failed', demo_error: 'x' }), mkLead(2, { demo_status: 'generating', updated_at: '2026-09-30T08:00:00.000Z' })] });
+  assert.equal((await createLeadDemo({ db, ownerId: OWNER, lead: row(db, 'L1'), publicUrl: PUBLIC, force: true, ...f })).ok, true);
+  assert.equal((await createLeadDemo({ db, ownerId: OWNER, lead: row(db, 'L2'), publicUrl: PUBLIC, ...f, now: () => new Date('2026-09-30T09:00:00Z') })).ok, true);
+  assert.deepEqual([row(db, 'L1').demo_status, row(db, 'L2').demo_status], ['ready', 'ready']);
+});
+
+test('generateDemos: solo leads "new" sin web, los más recientes primero, y cuenta creadas y fallidas', async () => {
+  const db = createMemoryDb({ new_business_leads: [
+    mkLead(1), mkLead(2), mkLead(3, { demo_status: 'ready' }), mkLead(4, { status: 'queued' }), mkLead(5), mkLead(6, { user_id: 'otro' }),
+  ] });
+  const f = fakes();
+  const r = await generateDemos({ db, ownerId: OWNER, publicUrl: PUBLIC, limit: 2, build: f.build, deploy: f.deploy });
+  assert.deepEqual([r.created, r.failed], [2, 0]);
+  assert.deepEqual(r.results.map(x => x.id), ['L1', 'L2']);
+  assert.equal(await readyDemoCount(db, OWNER), 3);
+  const again = await generateDemos({ db, ownerId: OWNER, publicUrl: PUBLIC, limit: 5, build: f.build, deploy: f.deploy });
+  assert.deepEqual(again.results.map(x => x.id), ['L5']);
+});
+
+test('generateDemos: UN reintento a las fallidas (tras 1 h) y a las atascadas (tras 20 min); si vuelve a fallar ya no se reintenta sola', async () => {
+  const NOW = new Date('2026-10-20T10:00:00Z');
+  const min = (m) => new Date(NOW.getTime() - m * 60_000).toISOString();
+  const db = createMemoryDb({ new_business_leads: [
+    mkLead(1, { demo_status: 'failed', demo_error: 'Vercel: sin red', updated_at: min(90) }),        // falló hace 1 h 30 → se reintenta
+    mkLead(2, { demo_status: 'failed', demo_error: 'sin crédito', updated_at: min(10) }),             // falló hace 10 min → aún no
+    mkLead(3, { demo_status: 'generating', updated_at: min(45) }),                                    // atascada → se recoge
+    mkLead(4, { demo_status: 'generating', updated_at: min(5) }),                                     // creándose ahora → no
+    mkLead(5, { demo_status: 'failed', demo_error: '[reintento] boom', updated_at: min(600) }),       // ya tuvo su reintento → no
+    mkLead(6, { demo_status: 'generating', demo_error: '[reintento]', updated_at: min(600) }),        // su reintento murió a medias → no
+  ] });
+  let n = 0;
+  const f = fakes();
+  const build = async (o) => { if (++n === 2) throw new Error('boom otra vez'); return f.build(o); };   // el 2º intento vuelve a fallar
+  const r = await generateDemos({ db, ownerId: OWNER, publicUrl: PUBLIC, limit: 5, build, deploy: f.deploy, now: () => NOW });
+  assert.deepEqual(r.results.map(x => x.id).sort(), ['L1', 'L3']);
+  assert.deepEqual([r.created, r.failed], [1, 1]);
+  const failedAgain = ['L1', 'L3'].map(id => row(db, id)).find(l => l.demo_status === 'failed');
+  assert.match(failedAgain.demo_error, /^\[reintento\] boom otra vez/);                                // marcada: no se reintentará sola
+  const later = await generateDemos({ db, ownerId: OWNER, publicUrl: PUBLIC, limit: 5, build: f.build, deploy: f.deploy, now: () => new Date(NOW.getTime() + 3 * 3_600_000) });
+  // 3 h después: L2 (ya pasó su hora) y L4 (ya lleva 20+ min atascada) tienen su primer reintento; las marcadas, nunca más
+  assert.deepEqual(later.results.map(x => x.id).sort(), ['L2', 'L4']);
+});
+
+test('pushLeads con LEAD_DEMOS=true: solo envía leads con su web lista, y {{web}} lleva su dirección', async () => {
+  const env = { INSTANTLY_API_KEY: 'k', INSTANTLY_CAMPAIGN_ID: '5a1d6d4e-8a0b-4e9c-9a53-2f4c8e7f1b10', CAMPAIGN_PUBLIC_URL: PUBLIC, LEAD_DEMOS: 'true' };
+  const config = loadInstantlyConfig(env, { dryRun: false });
+  assert.equal(config.demos, true);
+  assert.equal(loadInstantlyConfig({ ...env, LEAD_DEMOS: 'false' }, { dryRun: false }).demos, false);
+  const db = createMemoryDb({ new_business_leads: [mkLead(1, { demo_status: 'ready', demo_url: 'https://sol-1.vercel.app' }), mkLead(2), mkLead(3, { demo_status: 'failed' })] });
+  const sent = [];
+  const fetchImpl = async (url, opts) => {
+    const body = JSON.parse(opts.body);
+    sent.push(...body.leads);
+    return { ok: true, status: 200, json: async () => ({ created_leads: body.leads.map((l, index) => ({ id: `i-${index}`, index })) }) };
+  };
+  const r = await pushLeads({ db, ownerId: OWNER, config, limit: 10, dryRun: false, fetchImpl, sleep: async () => {} });
+  assert.equal(r.pushed, 1);
+  assert.deepEqual(sent.map(l => l.email), ['l1@gmail.com']);
+  assert.equal(sent[0].custom_variables.web, 'https://sol-1.vercel.app/?lang=es');
+  assert.deepEqual([row(db, 'L2').status, row(db, 'L3').status], ['new', 'new'], 'sin web, esperan');
+});
+
+// ─── servidor público de la campaña: la visita a la demo y el botón "Ver mi web" ─────────────────────────────────────
+let server, base, cdb;
+before(async () => {
+  cdb = createMemoryDb({ new_business_leads: [] });
+  server = await new Promise(r => { const s = createCampaignApp({ db: cdb, ownerId: OWNER }).listen(0, () => r(s)); });
+  base = `http://127.0.0.1:${server.address().port}`;
+});
+after(() => { server.closeAllConnections?.(); server.close(); });
+const UA = { 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1' };
+
+test('/v/:token (aviso desde la demo): abrir su web marca "engaged"; bots, tokens raros y estados avanzados no cuentan', async () => {
+  cdb.tables.new_business_leads = [mkLead(1, { status: 'emailed' }), mkLead(2, { status: 'requested' }), mkLead(3, { status: 'emailed' })];
+  const hit = (tok, headers = UA) => fetch(`${base}/v/${tok}`, { method: 'POST', headers });
+  assert.equal((await hit(mkLead(1).link_token)).status, 204);
+  assert.equal(row(cdb, 'L1').status, 'engaged');
+  assert.ok(row(cdb, 'L1').engaged_at);
+  await hit(mkLead(2).link_token);
+  assert.equal(row(cdb, 'L2').status, 'requested', 'no retrocede a alguien que ya pidió la llamada');
+  await hit(mkLead(3).link_token, { 'user-agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' });
+  assert.equal(row(cdb, 'L3').status, 'emailed', 'un bot no cuenta como visita');
+  assert.equal((await hit('no-es-un-token')).status, 204);
+});
+
+test('/c/:token: si el lead tiene web de demo, su página ofrece "Ver mi web" (en español)', async () => {
+  cdb.tables.new_business_leads = [mkLead(1, { status: 'emailed', demo_url: 'https://sol-1.vercel.app' }), mkLead(2, { status: 'emailed' })];
+  const withDemo = await (await fetch(`${base}/c/${mkLead(1).link_token}`, { headers: UA })).text();
+  assert.match(withDemo, /href="https:\/\/sol-1\.vercel\.app\/\?lang=es"[^>]*>Ver mi web</);
+  const without = await (await fetch(`${base}/c/${mkLead(2).link_token}`, { headers: UA })).text();
+  assert.doesNotMatch(without, /Ver mi web/);
+});
+
+// ─── API del dashboard ──────────────────────────────────────────────────────────────────────────────────────────────
+test('dashboard: crear la web de un lead, contadores de demos y el email según la versión activa', async () => {
+  const db = createMemoryDb({ new_business_leads: [mkLead(1), mkLead(2, { demo_status: 'failed' }), mkLead(3, { demo_status: 'ready' })] });
+  const f = fakes();
+  const app = express();
+  app.use(express.json());
+  app.use('/api/leads', createLeadsRouter({ db, ownerId: OWNER, demoBuild: f.build, demoDeploy: f.deploy }));
+  const srv = await new Promise(r => { const s = app.listen(0, () => r(s)); });
+  const url = `http://127.0.0.1:${srv.address().port}/api/leads`;
+  const saved = process.env.LEAD_DEMOS;
+  try {
+    const made = await fetch(`${url}/L1/demo`, { method: 'POST' }).then(r => r.json());
+    assert.equal(made.ok, true);
+    assert.equal(row(db, 'L1').demo_status, 'ready');
+    assert.equal((await fetch(`${url}/nope/demo`, { method: 'POST' })).status, 404);
+
+    const stats = await fetch(`${url}/stats`).then(r => r.json());
+    assert.deepEqual([stats.demos.ready, stats.demos.failed, stats.demos.columns], [2, 1, true]);
+    const list = await fetch(`${url}/?status=new&demo=ready&limit=10`).then(r => r.json());
+    assert.deepEqual(list.leads.map(l => l.id).sort(), ['L1', 'L3']);
+    assert.ok('demo_url' in list.leads[0]);
+
+    process.env.LEAD_DEMOS = 'true';
+    const tpl = await fetch(`${url}/email-template`).then(r => r.json());
+    assert.equal(tpl.demos, true);
+    assert.match(tpl.body, /\{\{web\}\}/);
+    process.env.LEAD_DEMOS = 'false';
+    assert.match((await fetch(`${url}/email-template`).then(r => r.json())).body, /\{\{calendario\}\}/);
+
+    const batch = await fetch(`${url}/demos`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ limit: 9 }) });
+    assert.equal(batch.status, 400, 'como mucho 5 de golpe');
+  } finally {
+    if (saved === undefined) delete process.env.LEAD_DEMOS; else process.env.LEAD_DEMOS = saved;
+    srv.closeAllConnections?.(); srv.close();
+  }
+});
+
+import { generateAllDemos } from '../src/services/leadDemos.js';
+test('generateAllDemos (modo "todas"): hace las webs de TODOS los leads nuevos sin web, de 5 en 5, y termina aunque alguna falle', async () => {
+  const leads = Array.from({ length: 12 }, (_, i) => mkLead(i + 1));
+  const db = createMemoryDb({ new_business_leads: leads });
+  let n = 0;
+  const f = fakes();
+  const build = async (o) => { if (++n === 4) throw new Error('boom'); return f.build(o); };
+  const r = await generateAllDemos({ db, ownerId: OWNER, publicUrl: PUBLIC, build, deploy: f.deploy });
+  assert.deepEqual(r, { created: 11, failed: 1 });
+  assert.equal(db.rows('new_business_leads').filter(l => l.demo_status === 'ready').length, 11);
+  assert.equal(db.rows('new_business_leads').filter(l => l.demo_status === 'failed').length, 1, 'la fallida no se reintenta en bucle');
+});
+
+test('generateAllDemos: se para al agotar el tiempo y el siguiente ciclo continúa', async () => {
+  const db = createMemoryDb({ new_business_leads: Array.from({ length: 12 }, (_, i) => mkLead(i + 1)) });
+  const f = fakes();
+  let t = 0;
+  const r = await generateAllDemos({ db, ownerId: OWNER, publicUrl: PUBLIC, batch: 5, maxMs: 100, build: f.build, deploy: f.deploy, now: () => (t += 60) });
+  assert.ok(r.created > 0 && r.created < 12);
+  const rest = await generateAllDemos({ db, ownerId: OWNER, publicUrl: PUBLIC, build: f.build, deploy: f.deploy });
+  assert.equal(r.created + rest.created, 12);
+});
+
+import { expireDemos } from '../src/services/leadDemos.js';
+import { deleteVercelProject } from '../src/services/vercel.js';
+
+test('expireDemos: a los 30 días del envío se borra la web de Vercel y se marca caducada; las de quien pidió llamada, respondió o aún no se envió se quedan', async () => {
+  const NOW = new Date('2026-10-20T10:00:00Z');
+  const ago = (d) => new Date(NOW.getTime() - d * 86_400_000).toISOString();
+  const lead = (i, over) => mkLead(i, { demo_status: 'ready', demo_url: `https://web-${i}.vercel.app`, demo_at: ago(33), pushed_at: ago(32), status: 'emailed', ...over });
+  const db = createMemoryDb({
+    new_business_leads: [lead(1), lead(2, { status: 'engaged' }), lead(3, { status: 'requested' }), lead(4, { status: 'replied' }), lead(5, { status: 'new', pushed_at: null }),
+      lead(6, { pushed_at: ago(25) }), lead(7, { pushed_at: ago(33), demo_at: ago(2) }), lead(8, { site_id: 'S8' }), lead(9, { pushed_at: ago(8), status: 'engaged' })],
+    generated_sites: [{ id: 'S8', slug: 'web-8', status: 'demo' }],
+  });
+  const removed = [];
+  const r = await expireDemos({ db, ownerId: OWNER, now: NOW, remove: async (name) => { removed.push(name); } });
+  assert.deepEqual(removed.sort(), ['web-1', 'web-2', 'web-8']);
+  assert.deepEqual(r, { expired: 3, failed: 0 });
+  const st = (id) => row(db, id).demo_status;
+  // L6 (25 días) y L9 (8 días, abrió la web: sigue en seguimiento) se quedan: ya no se borran a los 7 días
+  assert.deepEqual(['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9'].map(st), ['expired', 'expired', 'ready', 'ready', 'ready', 'ready', 'ready', 'expired', 'ready']);
+  assert.equal(db.rows('generated_sites')[0].status, 'expired');
+});
+
+test('expireDemos: si Vercel falla con una web, sigue con las demás y esa queda lista para el día siguiente', async () => {
+  const NOW = new Date('2026-10-20T10:00:00Z');
+  const old = new Date(NOW.getTime() - 33 * 86_400_000).toISOString();
+  const db = createMemoryDb({ new_business_leads: [1, 2].map(i => mkLead(i, { demo_status: 'ready', demo_url: `https://web-${i}.vercel.app`, demo_at: old, pushed_at: old, status: 'emailed' })) });
+  const r = await expireDemos({ db, ownerId: OWNER, now: NOW, remove: async (n) => { if (n === 'web-1') throw new Error('Vercel no borró web-1 (HTTP 500)'); } });
+  assert.deepEqual(r, { expired: 1, failed: 1 });
+  assert.deepEqual([row(db, 'L1').demo_status, row(db, 'L2').demo_status], ['ready', 'expired']);
+});
+
+test('expireDemos: borra el proyecto de Vercel por su slug, no por la dirección (que puede llevar un sufijo)', async () => {
+  const NOW = new Date('2026-10-20T10:00:00Z');
+  const old = new Date(NOW.getTime() - 33 * 86_400_000).toISOString();
+  const db = createMemoryDb({
+    new_business_leads: [mkLead(1, { demo_status: 'ready', demo_url: 'https://piscinas-rjm.vercel.app', site_id: 'S1', demo_at: old, pushed_at: old, status: 'emailed' })],
+    generated_sites: [{ id: 'S1', slug: 'Piscinas', status: 'demo' }],
+  });
+  const removed = [];
+  await expireDemos({ db, ownerId: OWNER, now: NOW, remove: async (name) => { removed.push(name); } });
+  assert.deepEqual(removed, ['piscinas']);   // el nombre del proyecto, con la misma regla que al publicar
+});
+
+test('deleteVercelProject: borra por nombre, un 404 (ya no existe) vale, otro error se avisa; usa el equipo si hay scope', async () => {
+  const calls = [];
+  const fetchImpl = (status) => async (url, opts) => { calls.push({ url, method: opts.method }); return url.endsWith('/v2/teams') ? { json: async () => ({ teams: [{ slug: 'mi-equipo', id: 'team_1' }] }) } : { ok: status < 300, status }; };
+  assert.equal(await deleteVercelProject('web-1', { token: 'T', scope: 'mi-equipo', fetchImpl: fetchImpl(204) }), true);
+  assert.deepEqual(calls.at(-1), { url: 'https://api.vercel.com/v9/projects/web-1?teamId=team_1', method: 'DELETE' });
+  assert.equal(await deleteVercelProject('web-2', { token: 'T', fetchImpl: fetchImpl(404) }), true);
+  await assert.rejects(deleteVercelProject('web-3', { token: 'T', fetchImpl: fetchImpl(500) }), /HTTP 500/);
+});
+
+test('/c/:token: una demo caducada ya no ofrece "Ver mi web"', async () => {
+  cdb.tables.new_business_leads = [mkLead(1, { status: 'emailed', demo_url: 'https://sol-1.vercel.app', demo_status: 'expired' })];
+  assert.doesNotMatch(await (await fetch(`${base}/c/${mkLead(1).link_token}`, { headers: UA })).text(), /Ver mi web/);
+});

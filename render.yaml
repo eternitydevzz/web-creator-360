@@ -1,0 +1,58 @@
+services:
+  # The public server of the campaign: the page each lead opens from the email (to ask for the call), the beacon of each demo
+  # website, and the crons of the autopilot (registry download, demos, sending to Instantly, checking Instantly every 5 min).
+  # It has no dashboard, so it is safe to expose. The dashboard runs on your computer (npm start).
+  - type: web
+    name: web-creator-360-campaign
+    env: node
+    region: frankfurt
+    # The free plan sleeps after a few minutes without visits: its crons stop and the email links take ~50 s to open.
+    # For a real campaign use a paid plan (starter).
+    plan: starter
+    buildCommand: npm install --omit=dev
+    startCommand: node src/campaign-server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Same values as in your .env (sync: false = you type them in Render's dashboard)
+      - key: BRAND_NAME                      # your brand: the lead's page names it in the consent
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: NEW_LEADS_OWNER_USER_ID
+        sync: false
+      - key: INSTANTLY_API_KEY
+        sync: false
+      - key: INSTANTLY_CAMPAIGN_ID           # new Connecticut LLCs, in Spanish
+        sync: false
+      - key: INSTANTLY_CAMPAIGN_ID_MAPS      # Google Maps businesses without a website, in English
+        sync: false
+      - key: CAMPAIGN_PUBLIC_URL             # this service's own https address (shown at the top of its page in Render)
+        sync: false
+      - key: LEAD_DEMOS                      # every lead gets its demo website before the email
+        value: "true"
+      - key: OUTREACH_DRY_RUN                # test mode: nothing is sent to Instantly. Set it to "false" when you are ready
+        value: "true"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: VERCEL_TOKEN
+        sync: false
+      - key: VERCEL_SCOPE
+        sync: false
+      - key: APIFY_TOKEN                     # only for the Google Maps campaign
+        sync: false
+      - key: MAPS_RUNS_PER_DAY               # searches per day (each = one city + 3 categories)
+        value: "2"
+      - key: MAPS_MAX_PER_SEARCH             # max places per search (caps the Apify cost)
+        value: "40"
+      - key: MAPS_LOOKUPS_PER_RUN            # places per run whose Facebook page is searched for an email (~$0.015 each)
+        value: "60"
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: SOCRATA_APP_TOKEN               # optional: data.ct.gov app token
+        sync: false

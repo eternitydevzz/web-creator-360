@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>Caja de claves · Web Creator 360</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      fontFamily: { sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'] },
+      colors: { brand: { 50: '#EEF2FF', 100: '#E0E7FF', 500: '#6366F1', 600: '#4F46E5', 700: '#4338CA' } },
+    } } };
+  </script>
+</head>
+<body class="min-h-screen bg-slate-50 font-sans text-slate-800 antialiased">
+  <main class="mx-auto max-w-2xl px-4 py-10">
+    <header class="mb-8">
+      <p class="text-xs font-bold uppercase tracking-wider text-brand-600">Web Creator 360 · instalación</p>
+      <h1 class="mt-1 text-3xl font-extrabold tracking-tight">Caja de claves</h1>
+      <p class="mt-3 text-[15px] leading-relaxed text-slate-600">
+        Pega aquí cada clave cuando Claude te lleve a la página donde está. Se comprueba al momento y se guarda en tu
+        archivo <code class="rounded bg-slate-200 px-1">.env</code>, en tu ordenador. <b>Nunca pegues una clave en el chat.</b>
+        Una clave guardada no se vuelve a mostrar: si pegas otra, sustituye a la anterior.
+      </p>
+    </header>
+    <div id="sections" class="space-y-5"></div>
+  </main>
+  <script src="/claves.js"></script>
+</body>
+</html>
